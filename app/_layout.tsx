@@ -3,7 +3,6 @@ import { useEffect } from 'react';
 import { AuthProvider, useSession } from '../ctx';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useColorScheme } from '../hooks/use-color-scheme';
-//Allison says hi
 
 function RootLayoutNav() {
     const { session, isLoading } = useSession();
