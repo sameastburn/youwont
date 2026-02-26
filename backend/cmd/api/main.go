@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -36,19 +35,18 @@ func connectMongo() *mongo.Client {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	content, err := os.ReadFile("../../secrets/mongodb_password.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
-	password := strings.TrimSpace(string(content))
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb+srv://gmosspaul18_db_user:"+password+"@cluster0.zb1wfdn.mongodb.net/youwont?retryWrites=true&w=majority"))
-	if err != nil {
-		panic(err)
+	uri := os.Getenv("MONGODB_URI")
+	if uri == "" {
+		log.Fatal("MONGODB_URI environment variable is not set")
 	}
 
-	err = client.Ping(ctx, nil)
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to connect to MongoDB: ", err)
+	}
+
+	if err = client.Ping(ctx, nil); err != nil {
+		log.Fatal("failed to ping MongoDB: ", err)
 	}
 
 	return client
