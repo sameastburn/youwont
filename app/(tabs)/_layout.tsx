@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, View, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -19,9 +19,9 @@ export default function TabLayout() {
         tabBarStyle: styles.tabBar,
         tabBarShowLabel: true,
         tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: '600',
-            marginBottom: 4,
+          fontSize: 12,
+          fontWeight: '600',
+          marginBottom: 4,
         },
       }}>
       <Tabs.Screen
@@ -32,10 +32,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="betting" // Ensure this matches your filename 'betting.tsx'
+        name="groups"
         options={{
-          title: 'Bets',
-          tabBarIcon: ({ color }) => <IconSymbol size={24} name="paperplane.fill" color={color} />,
+          title: 'Groups',
+          tabBarIcon: ({ color }) => <IconSymbol size={24} name="person.3.fill" color={color} />,
         }}
       />
     </Tabs>
@@ -43,24 +43,24 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-    tabBar: {
-        position: 'absolute',
-        bottom:0,
-        left: 20,
-        right: 20,
-        elevation: 0,
-        backgroundColor: '#ffffff',
-        borderRadius: 20,
-        height: 70,
-        borderTopWidth: 0,
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        paddingBottom: 0,
-        paddingTop: 10,
-    }
+  tabBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 20,
+    right: 20,
+    elevation: 0,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    height: 70,
+    borderTopWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    paddingBottom: 0,
+    paddingTop: 10,
+  }
 });
