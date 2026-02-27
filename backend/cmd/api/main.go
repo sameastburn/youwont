@@ -13,11 +13,14 @@ import (
 	"youwont.api/internal/repository"
 	"youwont.api/internal/service"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v5"
 	//"github.com/labstack/echo/v5/middleware"
 )
 
 func main() {
+    godotenv.Load()
+
     client := connectMongo()
     db := client.Database("youwont")
 
