@@ -1,9 +1,8 @@
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { AuthProvider, useSession } from '../ctx';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useColorScheme } from '../hooks/use-color-scheme';
-//Allison says hi
 
 function RootLayoutNav() {
     const { session, isLoading } = useSession();
@@ -26,7 +25,30 @@ function RootLayoutNav() {
         return null;
     }
 
-    return <Slot />;
+    return (
+        <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+                name="group/[id]"
+                options={{
+                    animation: 'slide_from_right',
+                }}
+            />
+            <Stack.Screen
+                name="bet/[id]"
+                options={{
+                    animation: 'slide_from_right',
+                }}
+            />
+            <Stack.Screen
+                name="modal"
+                options={{
+                    presentation: 'modal',
+                }}
+            />
+        </Stack>
+    );
 }
 
 export default function RootLayout() {
