@@ -31,7 +31,11 @@ func main() {
     e := echo.New()
     e.POST("/users", handler.CreateUser)
 
-    e.Start(":8080")
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8080"
+    }
+    e.Start(":" + port)
 }
 
 func connectMongo() *mongo.Client {
