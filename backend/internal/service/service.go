@@ -7,7 +7,6 @@ import (
 	"youwont.api/internal/repository"
 )
 
-
 func NewService(repo *repository.Repository) *Service {
 	return &Service{repo: repo}
 }
@@ -18,9 +17,9 @@ type Service struct {
 
 func (service *Service) CreateUser(userDto *dto.UserDto) error {
 	user := domain.UserModel{
-		ID: primitive.NilObjectID,
-		Name: userDto.Name,
-		Email: userDto.Email,
+		ID:         primitive.NilObjectID,
+		SupabaseID: userDto.ID,
+		Email:      userDto.Email,
 	}
 	err := service.repo.CreateUser(user)
 	return err
