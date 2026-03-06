@@ -1,26 +1,46 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { CURRENT_USER, getBetById, getPoolInfo, type BetSide, type BetStatus } from '@/data/mock';
+import { LoadingState } from '@/components/loading-state';
+import { ErrorState } from '@/components/error-state';
+import { useBet, usePlaceWager, useResolveBet } from '@/hooks/use-bets';
+import { useMe } from '@/hooks/use-user';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
+    Alert,
+    Modal,
     SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
 
+type BetStatus = 'OPEN' | 'RESOLVED' | 'CANCELED';
+type BetSide = 'FOR' | 'AGAINST';
+
 export default function BetDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
+    const { data: bet, isLoading, error, refetch } = useBet(id);
+    const { data: me } = useMe();
+    const placeWager = usePlaceWager(id);
+    const resolveBet = useResolveBet(id);
 
-    const bet = getBetById(id);
+    const [showWagerModal, setShowWagerModal] = useState(false);
+    const [wagerSide, setWagerSide] = useState<BetSide>('FOR');
+    const [wagerAmount, setWagerAmount] = useState('');
+    const [showResolveModal, setShowResolveModal] = useState(false);
+
+    if (isLoading) return <LoadingState />;
+    if (error) return <ErrorState message={error.message} onRetry={refetch} />;
     if (!bet) return null;
 
-    const pool = getPoolInfo(bet);
-    const forPercent = pool.total > 0 ? (pool.forTotal / pool.total) * 100 : 50;
-    const isDecider = bet.decider.id === CURRENT_USER.id;
-    const hasWagered = bet.wagers.some((w) => w.user.id === CURRENT_USER.id);
+    const pool = bet.pool;
+    const forPercent = pool.total > 0 ? (pool.for_total / pool.total) * 100 : 50;
+    const isDecider = bet.decider.id === me?.id;
+    const hasWagered = bet.wagers.some((w) => w.user.id === me?.id);
 
     const statusColors: Record<BetStatus, { bg: string; text: string; dot: string }> = {
         OPEN: { bg: '#f0fdf4', text: '#16a34a', dot: '#22c55e' },
@@ -44,6 +64,38 @@ export default function BetDetailScreen() {
             .slice(0, 2);
 
     const avatarColors = ['#7c3aed', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626'];
+
+    function handlePlaceWager() {
+        const amount = parseInt(wagerAmount, 10);
+        if (!amount || amount <= 0) {
+            Alert.alert('Error', 'Enter a valid amount');
+            return;
+        }
+        if (me && amount > me.points) {
+            Alert.alert('Error', 'Insufficient points');
+            return;
+        }
+        placeWager.mutate(
+            { side: wagerSide, amount },
+            {
+                onSuccess: () => {
+                    setShowWagerModal(false);
+                    setWagerAmount('');
+                },
+                onError: (err) => Alert.alert('Error', err.message),
+            },
+        );
+    }
+
+    function handleResolve(side: BetSide) {
+        resolveBet.mutate(side, {
+            onSuccess: (result) => {
+                setShowResolveModal(false);
+                Alert.alert('Bet Resolved', `${side} wins!`);
+            },
+            onError: (err) => Alert.alert('Error', err.message),
+        });
+    }
 
     return (
         <SafeAreaView style={styles.container}>
@@ -93,14 +145,14 @@ export default function BetDetailScreen() {
                             <View style={styles.poolSideInfo}>
                                 <View style={[styles.sideIndicator, { backgroundColor: '#22c55e' }]} />
                                 <Text style={styles.poolSideLabel}>FOR</Text>
-                                <Text style={styles.poolSideValue}>{pool.forTotal} pts</Text>
-                                <Text style={styles.poolSideCount}>({pool.forCount})</Text>
+                                <Text style={styles.poolSideValue}>{pool.for_total} pts</Text>
+                                <Text style={styles.poolSideCount}>({pool.for_count})</Text>
                             </View>
                             <View style={styles.poolSideInfo}>
                                 <View style={[styles.sideIndicator, { backgroundColor: '#ef4444' }]} />
                                 <Text style={styles.poolSideLabel}>AGAINST</Text>
-                                <Text style={styles.poolSideValue}>{pool.againstTotal} pts</Text>
-                                <Text style={styles.poolSideCount}>({pool.againstCount})</Text>
+                                <Text style={styles.poolSideValue}>{pool.against_total} pts</Text>
+                                <Text style={styles.poolSideCount}>({pool.against_count})</Text>
                             </View>
                         </View>
                     </View>
@@ -166,7 +218,7 @@ export default function BetDetailScreen() {
                             </View>
                             <View style={styles.wagerInfo}>
                                 <Text style={styles.wagerName}>
-                                    {wager.user.id === CURRENT_USER.id ? 'You' : wager.user.name}
+                                    {wager.user.id === me?.id ? 'You' : wager.user.name}
                                 </Text>
                                 <Text style={styles.wagerDate}>
                                     {new Date(wager.placed_at).toLocaleDateString('en-US', {
@@ -190,17 +242,132 @@ export default function BetDetailScreen() {
             {bet.status === 'OPEN' && (
                 <View style={styles.bottomActions}>
                     {!hasWagered && (
-                        <TouchableOpacity style={styles.primaryButton} activeOpacity={0.8}>
+                        <TouchableOpacity
+                            style={styles.primaryButton}
+                            activeOpacity={0.8}
+                            onPress={() => setShowWagerModal(true)}
+                        >
                             <Text style={styles.primaryButtonText}>Place a Wager</Text>
                         </TouchableOpacity>
                     )}
                     {isDecider && (
-                        <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.8}>
+                        <TouchableOpacity
+                            style={styles.secondaryButton}
+                            activeOpacity={0.8}
+                            onPress={() => setShowResolveModal(true)}
+                        >
                             <Text style={styles.secondaryButtonText}>Resolve Bet</Text>
                         </TouchableOpacity>
                     )}
                 </View>
             )}
+
+            {/* Place Wager Modal */}
+            <Modal visible={showWagerModal} transparent animationType="fade">
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowWagerModal(false)}
+                >
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Place a Wager</Text>
+
+                        <Text style={styles.modalLabel}>Side</Text>
+                        <View style={styles.sideToggle}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.sideOption,
+                                    wagerSide === 'FOR' && styles.sideOptionActiveFor,
+                                ]}
+                                onPress={() => setWagerSide('FOR')}
+                            >
+                                <Text
+                                    style={[
+                                        styles.sideOptionText,
+                                        wagerSide === 'FOR' && styles.sideOptionTextActive,
+                                    ]}
+                                >
+                                    FOR
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.sideOption,
+                                    wagerSide === 'AGAINST' && styles.sideOptionActiveAgainst,
+                                ]}
+                                onPress={() => setWagerSide('AGAINST')}
+                            >
+                                <Text
+                                    style={[
+                                        styles.sideOptionText,
+                                        wagerSide === 'AGAINST' && styles.sideOptionTextActive,
+                                    ]}
+                                >
+                                    AGAINST
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.modalLabel}>Amount</Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            placeholder="Enter points"
+                            placeholderTextColor="#94a3b8"
+                            value={wagerAmount}
+                            onChangeText={setWagerAmount}
+                            keyboardType="number-pad"
+                            autoFocus
+                        />
+                        {me && (
+                            <Text style={styles.balanceText}>Balance: {me.points} pts</Text>
+                        )}
+
+                        <TouchableOpacity
+                            style={styles.modalButton}
+                            onPress={handlePlaceWager}
+                            disabled={placeWager.isPending}
+                        >
+                            <Text style={styles.modalButtonText}>
+                                {placeWager.isPending ? 'Placing...' : 'Place Wager'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* Resolve Modal */}
+            <Modal visible={showResolveModal} transparent animationType="fade">
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowResolveModal(false)}
+                >
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Resolve Bet</Text>
+                        <Text style={styles.resolveSubtitle}>Which side won?</Text>
+
+                        <TouchableOpacity
+                            style={[styles.resolveOption, { borderColor: '#22c55e' }]}
+                            onPress={() => handleResolve('FOR')}
+                            disabled={resolveBet.isPending}
+                        >
+                            <Text style={[styles.resolveOptionText, { color: '#16a34a' }]}>
+                                FOR Wins
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.resolveOption, { borderColor: '#ef4444' }]}
+                            onPress={() => handleResolve('AGAINST')}
+                            disabled={resolveBet.isPending}
+                        >
+                            <Text style={[styles.resolveOptionText, { color: '#dc2626' }]}>
+                                AGAINST Wins
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -523,6 +690,107 @@ const styles = StyleSheet.create({
     },
     secondaryButtonText: {
         color: '#7c3aed',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    // Modals
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        backgroundColor: '#ffffff',
+        borderRadius: 20,
+        padding: 24,
+        width: '85%',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#0f172a',
+        marginBottom: 16,
+    },
+    modalLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#475569',
+        marginBottom: 8,
+    },
+    sideToggle: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 16,
+    },
+    sideOption: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+        backgroundColor: '#f8fafc',
+        borderWidth: 2,
+        borderColor: '#e2e8f0',
+    },
+    sideOptionActiveFor: {
+        backgroundColor: '#f0fdf4',
+        borderColor: '#22c55e',
+    },
+    sideOptionActiveAgainst: {
+        backgroundColor: '#fef2f2',
+        borderColor: '#ef4444',
+    },
+    sideOptionText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#94a3b8',
+    },
+    sideOptionTextActive: {
+        color: '#0f172a',
+    },
+    modalInput: {
+        height: 50,
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        fontSize: 18,
+        color: '#0f172a',
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    balanceText: {
+        fontSize: 12,
+        color: '#94a3b8',
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    modalButton: {
+        height: 48,
+        backgroundColor: '#7c3aed',
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalButtonText: {
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    resolveSubtitle: {
+        fontSize: 15,
+        color: '#64748b',
+        marginBottom: 16,
+    },
+    resolveOption: {
+        paddingVertical: 16,
+        borderRadius: 14,
+        alignItems: 'center',
+        borderWidth: 2,
+        marginBottom: 12,
+    },
+    resolveOptionText: {
         fontSize: 16,
         fontWeight: '700',
     },

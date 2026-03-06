@@ -1,9 +1,12 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { getBetsForGroup, getGroupById, getPoolInfo, type BetStatus } from '@/data/mock';
+import { LoadingState } from '@/components/loading-state';
+import { ErrorState } from '@/components/error-state';
+import { useGroup } from '@/hooks/use-groups';
+import { useBets } from '@/hooks/use-bets';
+import type { BetSummary } from '@/api/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    Dimensions,
     SafeAreaView,
     ScrollView,
     StyleSheet,
@@ -12,8 +15,7 @@ import {
     View,
 } from 'react-native';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
+type BetStatus = 'OPEN' | 'RESOLVED' | 'CANCELED';
 type FilterOption = 'ALL' | BetStatus;
 
 export default function GroupDetailScreen() {
@@ -21,14 +23,15 @@ export default function GroupDetailScreen() {
     const router = useRouter();
     const [activeFilter, setActiveFilter] = useState<FilterOption>('ALL');
 
-    const group = getGroupById(id);
+    const { data: group, isLoading: groupLoading, error: groupError, refetch: refetchGroup } = useGroup(id);
+    const statusFilter = activeFilter === 'ALL' ? undefined : activeFilter;
+    const { data: allBets } = useBets(id, statusFilter);
+
+    if (groupLoading) return <LoadingState />;
+    if (groupError) return <ErrorState message={groupError.message} onRetry={refetchGroup} />;
     if (!group) return null;
 
-    const allBets = getBetsForGroup(id);
-    const filteredBets =
-        activeFilter === 'ALL'
-            ? allBets
-            : allBets.filter((b) => b.status === activeFilter);
+    const filteredBets = allBets ?? [];
 
     const filters: { label: string; value: FilterOption }[] = [
         { label: 'All', value: 'ALL' },
@@ -87,15 +90,8 @@ export default function GroupDetailScreen() {
                         </View>
                         <View style={styles.statDivider} />
                         <View style={styles.statItem}>
-                            <Text style={styles.statValue}>
-                                {allBets.filter((b) => b.status === 'OPEN').length}
-                            </Text>
-                            <Text style={styles.statLabel}>Active Bets</Text>
-                        </View>
-                        <View style={styles.statDivider} />
-                        <View style={styles.statItem}>
-                            <Text style={styles.statValue}>{allBets.length}</Text>
-                            <Text style={styles.statLabel}>Total Bets</Text>
+                            <Text style={styles.statValue}>{filteredBets.length}</Text>
+                            <Text style={styles.statLabel}>Bets</Text>
                         </View>
                     </View>
 
@@ -114,7 +110,7 @@ export default function GroupDetailScreen() {
                     contentContainerStyle={styles.membersRow}
                 >
                     {group.members.map((member, index) => (
-                        <View key={member.user.id} style={styles.memberItem}>
+                        <View key={member.user_id} style={styles.memberItem}>
                             <View
                                 style={[
                                     styles.memberAvatar,
@@ -122,11 +118,11 @@ export default function GroupDetailScreen() {
                                 ]}
                             >
                                 <Text style={styles.memberAvatarText}>
-                                    {getInitials(member.user.name)}
+                                    {getInitials(member.name)}
                                 </Text>
                             </View>
                             <Text style={styles.memberName} numberOfLines={1}>
-                                {member.user.name === 'You' ? 'You' : member.user.name.split(' ')[0]}
+                                {member.name.split(' ')[0]}
                             </Text>
                             {member.role === 'ADMIN' && (
                                 <View style={styles.adminBadge}>
@@ -176,10 +172,10 @@ export default function GroupDetailScreen() {
                         <Text style={styles.emptyStateText}>No bets match this filter</Text>
                     </View>
                 ) : (
-                    filteredBets.map((bet) => {
-                        const pool = getPoolInfo(bet);
+                    filteredBets.map((bet: BetSummary) => {
+                        const pool = bet.pool;
                         const forPercent =
-                            pool.total > 0 ? (pool.forTotal / pool.total) * 100 : 50;
+                            pool.total > 0 ? (pool.for_total / pool.total) * 100 : 50;
                         const sc = statusColors[bet.status];
 
                         return (
@@ -210,10 +206,10 @@ export default function GroupDetailScreen() {
                                 <View style={styles.poolBarContainer}>
                                     <View style={styles.poolBarLabels}>
                                         <Text style={styles.poolBarFor}>
-                                            FOR · {pool.forTotal} pts
+                                            FOR · {pool.for_total} pts
                                         </Text>
                                         <Text style={styles.poolBarAgainst}>
-                                            AGAINST · {pool.againstTotal} pts
+                                            AGAINST · {pool.against_total} pts
                                         </Text>
                                     </View>
                                     <View style={styles.poolBar}>
@@ -231,7 +227,7 @@ export default function GroupDetailScreen() {
                                     <View style={styles.betMetaItem}>
                                         <IconSymbol size={13} name="person.2.fill" color="#94a3b8" />
                                         <Text style={styles.betMetaText}>
-                                            {bet.wagers.length} wagers
+                                            {bet.wager_count} wagers
                                         </Text>
                                     </View>
                                     <View style={styles.betMetaItem}>
@@ -251,7 +247,11 @@ export default function GroupDetailScreen() {
             </ScrollView>
 
             {/* FAB */}
-            <TouchableOpacity style={styles.fab} activeOpacity={0.8}>
+            <TouchableOpacity
+                style={styles.fab}
+                activeOpacity={0.8}
+                onPress={() => router.push(`/create-bet/${id}` as any)}
+            >
                 <IconSymbol size={24} name="plus" color="#ffffff" />
             </TouchableOpacity>
         </SafeAreaView>

@@ -1,21 +1,24 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"time"
 
 	"github.com/labstack/echo/v5"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"youwont.api/internal/middleware"
+	"youwont.api/internal/model"
 	"youwont.api/internal/service"
 )
 
 type BetHandler struct {
-	svc *service.BetService
+	svc   *service.BetService
+	users UserFinder
 }
 
-func NewBetHandler(svc *service.BetService) *BetHandler {
-	return &BetHandler{svc: svc}
+func NewBetHandler(svc *service.BetService, users UserFinder) *BetHandler {
+	return &BetHandler{svc: svc, users: users}
 }
 
 // ListByGroup handles GET /groups/:id/bets?status=OPEN.
@@ -49,8 +52,62 @@ func (h *BetHandler) ListByGroup(c *echo.Context) error {
 		return handleError(c, err)
 	}
 
+	// Collect all creator IDs for hydration
+	creatorIDs := make([]primitive.ObjectID, len(bets))
+	for i, b := range bets {
+		creatorIDs[i] = b.CreatorID
+	}
+	userMap, _ := buildUserMap(c.Request().Context(), h.users, creatorIDs)
+
+	type betSummary struct {
+		ID          interface{} `json:"id"`
+		GroupID     interface{} `json:"group_id"`
+		Title       string      `json:"title"`
+		Description string      `json:"description"`
+		Creator     UserSummary `json:"creator"`
+		Status      string      `json:"status"`
+		WinningSide *string     `json:"winning_side"`
+		EndDate     interface{} `json:"end_date"`
+		WagerCount  int         `json:"wager_count"`
+		Pool        interface{} `json:"pool"`
+		CreatedAt   interface{} `json:"created_at"`
+	}
+
+	summaries := make([]betSummary, len(bets))
+	for i, b := range bets {
+		var forTotal, againstTotal, forCount, againstCount int
+		for _, w := range b.Wagers {
+			if w.Side == "FOR" {
+				forTotal += w.Amount
+				forCount++
+			} else {
+				againstTotal += w.Amount
+				againstCount++
+			}
+		}
+		summaries[i] = betSummary{
+			ID:          b.ID,
+			GroupID:     b.GroupID,
+			Title:       b.Title,
+			Description: b.Description,
+			Creator:     userMap[b.CreatorID.Hex()],
+			Status:      b.Status,
+			WinningSide: b.WinningSide,
+			EndDate:     b.EndDate,
+			WagerCount:  len(b.Wagers),
+			Pool: map[string]int{
+				"total":         forTotal + againstTotal,
+				"for_total":     forTotal,
+				"against_total": againstTotal,
+				"for_count":     forCount,
+				"against_count": againstCount,
+			},
+			CreatedAt: b.CreatedAt,
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"bets": bets,
+		"bets": summaries,
 	})
 }
 
@@ -122,7 +179,7 @@ func (h *BetHandler) Create(c *echo.Context) error {
 		return handleError(c, err)
 	}
 
-	return c.JSON(http.StatusCreated, bet)
+	return c.JSON(http.StatusCreated, hydrateBet(c.Request().Context(), h.users, bet))
 }
 
 // Get handles GET /bets/:id.
@@ -150,7 +207,69 @@ func (h *BetHandler) Get(c *echo.Context) error {
 		return handleError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, bet)
+	return c.JSON(http.StatusOK, hydrateBet(c.Request().Context(), h.users, bet))
+}
+
+// hydrateBet replaces raw IDs with user summary objects.
+func hydrateBet(ctx context.Context, uf UserFinder, bet *model.Bet) map[string]interface{} {
+	ids := []primitive.ObjectID{bet.CreatorID, bet.DeciderID}
+	for _, w := range bet.Wagers {
+		ids = append(ids, w.UserID)
+	}
+	userMap, _ := buildUserMap(ctx, uf, ids)
+
+	type hydratedWager struct {
+		ID       string      `json:"id"`
+		User     UserSummary `json:"user"`
+		Side     string      `json:"side"`
+		Amount   int         `json:"amount"`
+		PlacedAt string      `json:"placed_at"`
+	}
+	wagers := make([]hydratedWager, len(bet.Wagers))
+	for i, w := range bet.Wagers {
+		wagers[i] = hydratedWager{
+			ID:       w.ID.Hex(),
+			User:     userMap[w.UserID.Hex()],
+			Side:     w.Side,
+			Amount:   w.Amount,
+			PlacedAt: w.PlacedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+	}
+
+	// Compute pool info
+	var forTotal, againstTotal, forCount, againstCount int
+	for _, w := range bet.Wagers {
+		if w.Side == "FOR" {
+			forTotal += w.Amount
+			forCount++
+		} else {
+			againstTotal += w.Amount
+			againstCount++
+		}
+	}
+
+	result := map[string]interface{}{
+		"id":          bet.ID,
+		"group_id":    bet.GroupID,
+		"title":       bet.Title,
+		"description": bet.Description,
+		"creator":     userMap[bet.CreatorID.Hex()],
+		"decider":     userMap[bet.DeciderID.Hex()],
+		"end_date":    bet.EndDate,
+		"status":      bet.Status,
+		"winning_side": bet.WinningSide,
+		"wagers":      wagers,
+		"pool": map[string]int{
+			"total":         forTotal + againstTotal,
+			"for_total":     forTotal,
+			"against_total": againstTotal,
+			"for_count":     forCount,
+			"against_count": againstCount,
+		},
+		"resolved_at": bet.ResolvedAt,
+		"created_at":  bet.CreatedAt,
+	}
+	return result
 }
 
 // PlaceWager handles POST /bets/:id/wagers.
@@ -191,7 +310,7 @@ func (h *BetHandler) PlaceWager(c *echo.Context) error {
 		return handleError(c, err)
 	}
 
-	return c.JSON(http.StatusCreated, bet)
+	return c.JSON(http.StatusCreated, hydrateBet(c.Request().Context(), h.users, bet))
 }
 
 // ChangeDecider handles PUT /bets/:id/decider.
@@ -233,7 +352,7 @@ func (h *BetHandler) ChangeDecider(c *echo.Context) error {
 		return handleError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, bet)
+	return c.JSON(http.StatusOK, hydrateBet(c.Request().Context(), h.users, bet))
 }
 
 // Resolve handles POST /bets/:id/resolve.
