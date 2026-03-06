@@ -12,7 +12,7 @@ type Config struct {
 	Port              string
 	MongoURI          string
 	MongoDB           string
-	SupabaseJWTSecret string
+	SupabaseJWKSURL string
 	StartingPoints    int
 	MinWager          int
 }
@@ -24,7 +24,7 @@ func Load() *Config {
 		Port:              envOr("PORT", "8080"),
 		MongoURI:          mustEnv("MONGODB_URI"),
 		MongoDB:           envOr("MONGO_DB", "youwont"),
-		SupabaseJWTSecret: mustEnv("SUPABASE_JWT_SECRET"),
+		SupabaseJWKSURL: envOr("SUPABASE_JWKS_URL", "https://pubiltfghmqmiirephsd.supabase.co/auth/v1/.well-known/jwks.json"),
 		StartingPoints:    envIntOr("STARTING_POINTS", 1000),
 		MinWager:          envIntOr("MIN_WAGER", 10),
 	}

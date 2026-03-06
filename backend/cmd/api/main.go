@@ -52,8 +52,11 @@ func main() {
 	inviteSvc := service.NewInviteService(inviteRepo, groupRepo, notifRepo, client)
 	notifSvc := service.NewNotificationService(notifRepo)
 
-	// Auth middleware
-	auth := middleware.NewAuth(cfg.SupabaseJWTSecret, userSvc)
+	// Auth middleware — fetches JWKS from Supabase at startup
+	auth, err := middleware.NewAuth(cfg.SupabaseJWKSURL, userSvc)
+	if err != nil {
+		log.Fatal("failed to init auth: ", err)
+	}
 
 	// Handlers
 	userH := handler.NewUserHandler(userSvc, auth)
