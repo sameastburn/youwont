@@ -32,7 +32,7 @@ func (s *UserService) FindBySupabaseID(ctx context.Context, supabaseID string) (
 	return s.users.FindBySupabaseID(ctx, supabaseID)
 }
 
-func (s *UserService) Create(ctx context.Context, supabaseID, name, username string) (*model.User, error) {
+func (s *UserService) Create(ctx context.Context, supabaseID, firstName, lastName, username string) (*model.User, error) {
 	existing, err := s.users.FindBySupabaseID(ctx, supabaseID)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,8 @@ func (s *UserService) Create(ctx context.Context, supabaseID, name, username str
 	user := &model.User{
 		ID:         primitive.NewObjectID(),
 		SupabaseID: supabaseID,
-		Name:       name,
+		FirstName:  firstName,
+		LastName:   lastName,
 		Username:   username,
 		Points:     s.startingPoints,
 		CreatedAt:  time.Now(),
