@@ -4,7 +4,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/labstack/echo/v5"
 	"youwont.api/internal/middleware"
@@ -33,73 +32,10 @@ func NewUserHandler(svc *service.UserService, auth *middleware.Auth) *UserHandle
 // @Failure      409 {object} ErrorResponse
 // @Router       /users [post]
 func (h *UserHandler) Create(c *echo.Context) error {
-	// Temporary: log raw request body for webhook debugging
 	bodyBytes, _ := io.ReadAll(c.Request().Body)
 	log.Printf("POST /users raw body: %s", string(bodyBytes))
-	c.Request().Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 
-	sub, _ := h.auth.ExtractSubFromToken(c)
-
-	var body struct {
-		Name     string `json:"name"`
-		Username string `json:"username"`
-
-		// Webhook fallback fields (backward compat with Supabase webhooks)
-		ID     string `json:"id,omitempty"`
-		Email  string `json:"email,omitempty"`
-		Record *struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
-		} `json:"record,omitempty"`
-		User *struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
-		} `json:"user,omitempty"`
-	}
-	if err := c.Bind(&body); err != nil {
-		return badRequest(c, "invalid request body")
-	}
-
-	// If no JWT sub, try webhook format
-	if sub == "" {
-		if body.Record != nil {
-			sub = body.Record.ID
-		} else if body.User != nil {
-			sub = body.User.ID
-		} else if body.ID != "" {
-			sub = body.ID
-		}
-	}
-
-	if sub == "" {
-		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-			"error": map[string]string{
-				"code":    "UNAUTHORIZED",
-				"message": "valid token or user id required",
-			},
-		})
-	}
-
-	// For webhook flow, name/username may be empty — generate defaults
-	name := body.Name
-	username := body.Username
-	if name == "" && body.Email != "" {
-		name = body.Email
-	}
-	if username == "" && len(sub) >= 8 {
-		username = sub[:8]
-	}
-
-	if name == "" || username == "" {
-		return badRequest(c, "name and username are required")
-	}
-
-	user, err := h.svc.Create(c.Request().Context(), sub, name, username)
-	if err != nil {
-		return handleError(c, err)
-	}
-
-	return c.JSON(http.StatusCreated, user)
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // Me handles GET /users/me.
