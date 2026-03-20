@@ -2,7 +2,7 @@ name: Deploy Backend
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/first-last-name]
     paths: [backend/**]
 
 jobs:
