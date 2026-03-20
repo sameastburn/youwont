@@ -43,7 +43,7 @@ type supabaseWebhookPayload struct {
 // @Router       /users [post]
 func (h *UserHandler) Create(c *echo.Context) error {
 	bodyBytes, _ := io.ReadAll(c.Request().Body)
-	log.Printf("POST /users raw body: %s", string(bodyBytes))
+	log.Printf("POST w/ full /users raw body: %s", string(bodyBytes))
 
 	var payload supabaseWebhookPayload
 	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
