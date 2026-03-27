@@ -54,7 +54,7 @@ func (s *InviteService) Send(ctx context.Context, user *model.User, groupID, inv
 		GroupID:       groupID,
 		GroupName:     group.Name,
 		InvitedBy:     user.ID,
-		InvitedByName: user.Name,
+		InvitedByName: user.FullName(),
 		InviteeID:     inviteeID,
 		Status:        "PENDING",
 		CreatedAt:     now,
@@ -66,7 +66,7 @@ func (s *InviteService) Send(ctx context.Context, user *model.User, groupID, inv
 		Type:      "GROUP_INVITE",
 		RefType:   "invite",
 		RefID:     invite.ID,
-		Message:   fmt.Sprintf("%s invited you to %s", user.Name, group.Name),
+		Message:   fmt.Sprintf("%s invited you to %s", user.FullName(), group.Name),
 		Read:      false,
 		CreatedAt: now,
 	}
@@ -124,7 +124,7 @@ func (s *InviteService) Accept(ctx context.Context, user *model.User, inviteID p
 		Type:      "INVITE_ACCEPTED",
 		RefType:   "group",
 		RefID:     invite.GroupID,
-		Message:   fmt.Sprintf("%s accepted your invite to %s", user.Name, invite.GroupName),
+		Message:   fmt.Sprintf("%s accepted your invite to %s", user.FullName(), invite.GroupName),
 		Read:      false,
 		CreatedAt: time.Now(),
 	}

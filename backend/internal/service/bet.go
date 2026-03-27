@@ -162,7 +162,7 @@ func (s *BetService) Create(ctx context.Context, user *model.User, input CreateB
 				Type:      "BET_CREATED",
 				RefType:   "bet",
 				RefID:     bet.ID,
-				Message:   fmt.Sprintf("%s created a new bet: \"%s\"", user.Name, bet.Title),
+				Message:   fmt.Sprintf("%s created a new bet: \"%s\"", user.FullName(), bet.Title),
 				Read:      false,
 				CreatedAt: now,
 			})
@@ -362,7 +362,7 @@ func (s *BetService) Resolve(ctx context.Context, user *model.User, betID primit
 			u := userMap[w.UserID]
 			payouts = append(payouts, Payout{
 				UserID: w.UserID,
-				Name:   u.Name,
+				Name:   u.FullName(),
 				Amount: totalPayout,
 				Net:    share,
 			})

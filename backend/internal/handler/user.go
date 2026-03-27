@@ -1,9 +1,13 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/labstack/echo/v5"
@@ -20,86 +24,77 @@ func NewUserHandler(svc *service.UserService, auth *middleware.Auth) *UserHandle
 	return &UserHandler{svc: svc, auth: auth}
 }
 
-// Create handles POST /users — public endpoint, called after Supabase signup.
+// supabaseWebhookPayload matches the Supabase before-user-created hook shape.
+type supabaseWebhookPayload struct {
+	User struct {
+		ID           string                 `json:"id"`
+		Email        string                 `json:"email"`
+		UserMetadata map[string]interface{} `json:"user_metadata"`
+	} `json:"user"`
+}
+
+// Create handles POST /users — Supabase before-user-created webhook.
 // @Summary      Create user profile
-// @Description  Called once after Supabase signup to create the user profile in MongoDB. Also supports Supabase webhook format.
+// @Description  Called by Supabase before-user-created webhook. Extracts first/last name from user_metadata and creates MongoDB user.
 // @Tags         users
 // @Accept       json
 // @Produce      json
-// @Param        body body CreateUserRequest true "User details"
-// @Success      201 {object} model.User
-// @Failure      400 {object} ErrorResponse
-// @Failure      401 {object} ErrorResponse
-// @Failure      409 {object} ErrorResponse
+// @Success      200 {object} map[string]string
 // @Router       /users [post]
 func (h *UserHandler) Create(c *echo.Context) error {
-	// Temporary: log raw request body for webhook debugging
 	bodyBytes, _ := io.ReadAll(c.Request().Body)
 	log.Printf("POST /users raw body: %s", string(bodyBytes))
-	c.Request().Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 
-	sub, _ := h.auth.ExtractSubFromToken(c)
-
-	var body struct {
-		Name     string `json:"name"`
-		Username string `json:"username"`
-
-		// Webhook fallback fields (backward compat with Supabase webhooks)
-		ID     string `json:"id,omitempty"`
-		Email  string `json:"email,omitempty"`
-		Record *struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
-		} `json:"record,omitempty"`
-		User *struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
-		} `json:"user,omitempty"`
-	}
-	if err := c.Bind(&body); err != nil {
-		return badRequest(c, "invalid request body")
+	var payload supabaseWebhookPayload
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		log.Printf("POST /users: failed to parse body: %v", err)
+		return c.JSON(http.StatusOK, map[string]string{"decision": "reject", "message": "invalid request body"})
 	}
 
-	// If no JWT sub, try webhook format
-	if sub == "" {
-		if body.Record != nil {
-			sub = body.Record.ID
-		} else if body.User != nil {
-			sub = body.User.ID
-		} else if body.ID != "" {
-			sub = body.ID
-		}
+	supabaseID := payload.User.ID
+	if supabaseID == "" {
+		return c.JSON(http.StatusOK, map[string]string{"decision": "reject", "message": "missing user id"})
 	}
 
-	if sub == "" {
-		return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-			"error": map[string]string{
-				"code":    "UNAUTHORIZED",
-				"message": "valid token or user id required",
-			},
-		})
+	firstName, _ := payload.User.UserMetadata["first_name"].(string)
+	lastName, _ := payload.User.UserMetadata["last_name"].(string)
+	firstName = strings.TrimSpace(firstName)
+	lastName = strings.TrimSpace(lastName)
+
+	if firstName == "" {
+		return c.JSON(http.StatusOK, map[string]string{"decision": "reject", "message": "first name is required"})
 	}
 
-	// For webhook flow, name/username may be empty — generate defaults
-	name := body.Name
-	username := body.Username
-	if name == "" && body.Email != "" {
-		name = body.Email
-	}
-	if username == "" && len(sub) >= 8 {
-		username = sub[:8]
-	}
+	username := usernameFromEmail(payload.User.Email)
 
-	if name == "" || username == "" {
-		return badRequest(c, "name and username are required")
+	_, err := h.svc.Create(c.Request().Context(), supabaseID, firstName, lastName, username)
+	if err == service.ErrAlreadyExists {
+		return c.JSON(http.StatusOK, map[string]string{"decision": "continue"})
 	}
-
-	user, err := h.svc.Create(c.Request().Context(), sub, name, username)
 	if err != nil {
-		return handleError(c, err)
+		log.Printf("POST /users: create failed: %v", err)
+		return c.JSON(http.StatusOK, map[string]string{"decision": "reject", "message": "failed to create user"})
 	}
 
-	return c.JSON(http.StatusCreated, user)
+	return c.JSON(http.StatusOK, map[string]string{"decision": "continue"})
+}
+
+var nonAlphanumeric = regexp.MustCompile(`[^a-z0-9]`)
+
+func usernameFromEmail(email string) string {
+	prefix := email
+	if at := strings.Index(email, "@"); at > 0 {
+		prefix = email[:at]
+	}
+	prefix = strings.ToLower(prefix)
+	prefix = nonAlphanumeric.ReplaceAllString(prefix, "")
+	if len(prefix) > 16 {
+		prefix = prefix[:16]
+	}
+	if prefix == "" {
+		prefix = "user"
+	}
+	return fmt.Sprintf("%s%04d", prefix, rand.Intn(10000))
 }
 
 // Me handles GET /users/me.
@@ -135,7 +130,8 @@ func (h *UserHandler) Search(c *echo.Context) error {
 
 	type searchResult struct {
 		ID        string  `json:"id"`
-		Name      string  `json:"name"`
+		FirstName string  `json:"first_name"`
+		LastName  string  `json:"last_name"`
 		Username  string  `json:"username"`
 		AvatarURL *string `json:"avatar_url"`
 	}
@@ -143,7 +139,8 @@ func (h *UserHandler) Search(c *echo.Context) error {
 	for i, u := range users {
 		results[i] = searchResult{
 			ID:        u.ID.Hex(),
-			Name:      u.Name,
+			FirstName: u.FirstName,
+			LastName:  u.LastName,
 			Username:  u.Username,
 			AvatarURL: u.AvatarURL,
 		}

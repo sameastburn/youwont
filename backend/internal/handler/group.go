@@ -111,7 +111,8 @@ func (h *GroupHandler) Get(c *echo.Context) error {
 
 	type hydratedMember struct {
 		UserID    string  `json:"user_id"`
-		Name      string  `json:"name"`
+		FirstName string  `json:"first_name"`
+		LastName  string  `json:"last_name"`
 		Username  string  `json:"username"`
 		AvatarURL *string `json:"avatar_url"`
 		Role      string  `json:"role"`
@@ -122,7 +123,8 @@ func (h *GroupHandler) Get(c *echo.Context) error {
 		u := userMap[m.UserID.Hex()]
 		members[i] = hydratedMember{
 			UserID:    m.UserID.Hex(),
-			Name:      u.Name,
+			FirstName: u.FirstName,
+			LastName:  u.LastName,
 			Username:  u.Username,
 			AvatarURL: u.AvatarURL,
 			Role:      m.Role,

@@ -19,7 +19,8 @@ type UserFinder interface {
 // UserSummary is the public user info included in hydrated responses.
 type UserSummary struct {
 	ID        string  `json:"id"`
-	Name      string  `json:"name"`
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
 	Username  string  `json:"username"`
 	AvatarURL *string `json:"avatar_url"`
 }
@@ -46,7 +47,8 @@ func buildUserMap(ctx context.Context, uf UserFinder, ids []primitive.ObjectID) 
 	for _, u := range users {
 		m[u.ID.Hex()] = UserSummary{
 			ID:        u.ID.Hex(),
-			Name:      u.Name,
+			FirstName: u.FirstName,
+			LastName:  u.LastName,
 			Username:  u.Username,
 			AvatarURL: u.AvatarURL,
 		}

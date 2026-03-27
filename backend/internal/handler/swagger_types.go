@@ -6,8 +6,8 @@ package handler
 // --- Requests ---
 
 type CreateUserRequest struct {
-	Name     string `json:"name" example:"Sam"`
-	Username string `json:"username" example:"sam"`
+	FirstName string `json:"first_name" example:"John"`
+	LastName  string `json:"last_name" example:"Doe"`
 }
 
 type CreateGroupRequest struct {
@@ -66,7 +66,8 @@ type UserSearchResponse struct {
 
 type UserSearchResult struct {
 	ID        string  `json:"id" example:"665a1a2b3c4d5e6f7a8b9c0d"`
-	Name      string  `json:"name" example:"Orion"`
+	FirstName string  `json:"first_name" example:"Orion"`
+	LastName  string  `json:"last_name" example:"Smith"`
 	Username  string  `json:"username" example:"orion"`
 	AvatarURL *string `json:"avatar_url"`
 }
