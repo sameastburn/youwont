@@ -1,34 +1,69 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { getBetsForGroup, getGroupById, getPoolInfo, type BetStatus } from '@/data/mock';
+import { LoadingState } from '@/components/loading-state';
+import { ErrorState } from '@/components/error-state';
+import { useGroup } from '@/hooks/use-groups';
+import { useBets } from '@/hooks/use-bets';
+import { useSendInvite } from '@/hooks/use-invites';
+import { useSearchUsers } from '@/hooks/use-user';
+import type { BetSummary } from '@/api/types';
+import { fullName, getInitials } from '@/lib/user';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import {
-    Dimensions,
+    Alert,
+    Modal,
     SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
+type BetStatus = 'OPEN' | 'RESOLVED' | 'CANCELED';
 type FilterOption = 'ALL' | BetStatus;
 
 export default function GroupDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
     const [activeFilter, setActiveFilter] = useState<FilterOption>('ALL');
+    const [showMenu, setShowMenu] = useState(false);
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
-    const group = getGroupById(id);
+    const { data: group, isLoading: groupLoading, error: groupError, refetch: refetchGroup } = useGroup(id);
+    const statusFilter = activeFilter === 'ALL' ? undefined : activeFilter;
+    const { data: allBets } = useBets(id, statusFilter);
+    const sendInvite = useSendInvite(id);
+    const { data: searchResults } = useSearchUsers(searchQuery);
+
+    if (groupLoading) return <LoadingState />;
+    if (groupError) return <ErrorState message={groupError.message} onRetry={refetchGroup} />;
     if (!group) return null;
 
-    const allBets = getBetsForGroup(id);
-    const filteredBets =
-        activeFilter === 'ALL'
-            ? allBets
-            : allBets.filter((b) => b.status === activeFilter);
+    const memberIds = new Set(group.members.map((m) => m.user_id));
+    const filteredSearchResults = (searchResults ?? []).filter((u) => !memberIds.has(u.id));
+
+    async function handleCopyCode() {
+        await Clipboard.setStringAsync(group!.invite_code);
+        setShowMenu(false);
+        Alert.alert('Copied!', `Invite code "${group!.invite_code}" copied to clipboard`);
+    }
+
+    function handleSendInvite(userId: string) {
+        sendInvite.mutate(userId, {
+            onSuccess: () => {
+                setShowInviteModal(false);
+                setSearchQuery('');
+                Alert.alert('Invite Sent!', 'They\'ll see it in their notifications.');
+            },
+            onError: (err) => Alert.alert('Error', err.message),
+        });
+    }
+
+    const filteredBets = allBets ?? [];
 
     const filters: { label: string; value: FilterOption }[] = [
         { label: 'All', value: 'ALL' },
@@ -43,15 +78,6 @@ export default function GroupDetailScreen() {
         CANCELED: { bg: '#fef2f2', text: '#dc2626', dot: '#ef4444' },
     };
 
-    const getInitials = (name: string) => {
-        return name
-            .split(' ')
-            .map((n) => n[0])
-            .join('')
-            .toUpperCase()
-            .slice(0, 2);
-    };
-
     const avatarColors = ['#7c3aed', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed'];
 
     return (
@@ -64,7 +90,7 @@ export default function GroupDetailScreen() {
                 <Text style={styles.headerTitle} numberOfLines={1}>
                     {group.name}
                 </Text>
-                <TouchableOpacity style={styles.settingsButton}>
+                <TouchableOpacity style={styles.settingsButton} onPress={() => setShowMenu(true)}>
                     <IconSymbol size={20} name="ellipsis" color="#64748b" />
                 </TouchableOpacity>
             </View>
@@ -87,15 +113,8 @@ export default function GroupDetailScreen() {
                         </View>
                         <View style={styles.statDivider} />
                         <View style={styles.statItem}>
-                            <Text style={styles.statValue}>
-                                {allBets.filter((b) => b.status === 'OPEN').length}
-                            </Text>
-                            <Text style={styles.statLabel}>Active Bets</Text>
-                        </View>
-                        <View style={styles.statDivider} />
-                        <View style={styles.statItem}>
-                            <Text style={styles.statValue}>{allBets.length}</Text>
-                            <Text style={styles.statLabel}>Total Bets</Text>
+                            <Text style={styles.statValue}>{filteredBets.length}</Text>
+                            <Text style={styles.statLabel}>Bets</Text>
                         </View>
                     </View>
 
@@ -114,7 +133,7 @@ export default function GroupDetailScreen() {
                     contentContainerStyle={styles.membersRow}
                 >
                     {group.members.map((member, index) => (
-                        <View key={member.user.id} style={styles.memberItem}>
+                        <View key={member.user_id} style={styles.memberItem}>
                             <View
                                 style={[
                                     styles.memberAvatar,
@@ -122,11 +141,11 @@ export default function GroupDetailScreen() {
                                 ]}
                             >
                                 <Text style={styles.memberAvatarText}>
-                                    {getInitials(member.user.name)}
+                                    {getInitials(member)}
                                 </Text>
                             </View>
                             <Text style={styles.memberName} numberOfLines={1}>
-                                {member.user.name === 'You' ? 'You' : member.user.name.split(' ')[0]}
+                                {member.first_name}
                             </Text>
                             {member.role === 'ADMIN' && (
                                 <View style={styles.adminBadge}>
@@ -176,10 +195,10 @@ export default function GroupDetailScreen() {
                         <Text style={styles.emptyStateText}>No bets match this filter</Text>
                     </View>
                 ) : (
-                    filteredBets.map((bet) => {
-                        const pool = getPoolInfo(bet);
+                    filteredBets.map((bet: BetSummary) => {
+                        const pool = bet.pool;
                         const forPercent =
-                            pool.total > 0 ? (pool.forTotal / pool.total) * 100 : 50;
+                            pool.total > 0 ? (pool.for_total / pool.total) * 100 : 50;
                         const sc = statusColors[bet.status];
 
                         return (
@@ -210,10 +229,10 @@ export default function GroupDetailScreen() {
                                 <View style={styles.poolBarContainer}>
                                     <View style={styles.poolBarLabels}>
                                         <Text style={styles.poolBarFor}>
-                                            FOR · {pool.forTotal} pts
+                                            FOR · {pool.for_total} pts
                                         </Text>
                                         <Text style={styles.poolBarAgainst}>
-                                            AGAINST · {pool.againstTotal} pts
+                                            AGAINST · {pool.against_total} pts
                                         </Text>
                                     </View>
                                     <View style={styles.poolBar}>
@@ -231,7 +250,7 @@ export default function GroupDetailScreen() {
                                     <View style={styles.betMetaItem}>
                                         <IconSymbol size={13} name="person.2.fill" color="#94a3b8" />
                                         <Text style={styles.betMetaText}>
-                                            {bet.wagers.length} wagers
+                                            {bet.wager_count} wagers
                                         </Text>
                                     </View>
                                     <View style={styles.betMetaItem}>
@@ -251,9 +270,87 @@ export default function GroupDetailScreen() {
             </ScrollView>
 
             {/* FAB */}
-            <TouchableOpacity style={styles.fab} activeOpacity={0.8}>
+            <TouchableOpacity
+                style={styles.fab}
+                activeOpacity={0.8}
+                onPress={() => router.push(`/create-bet/${id}` as any)}
+            >
                 <IconSymbol size={24} name="plus" color="#ffffff" />
             </TouchableOpacity>
+            {/* Menu Modal */}
+            <Modal visible={showMenu} transparent animationType="fade">
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowMenu(false)}
+                >
+                    <View style={styles.menuContent}>
+                        <TouchableOpacity
+                            style={styles.menuItem}
+                            onPress={() => {
+                                setShowMenu(false);
+                                setShowInviteModal(true);
+                            }}
+                        >
+                            <IconSymbol size={18} name="person.badge.plus" color="#7c3aed" />
+                            <Text style={styles.menuItemText}>Invite Member</Text>
+                        </TouchableOpacity>
+                        <View style={styles.menuDivider} />
+                        <TouchableOpacity style={styles.menuItem} onPress={handleCopyCode}>
+                            <IconSymbol size={18} name="doc.on.doc" color="#7c3aed" />
+                            <Text style={styles.menuItemText}>Copy Invite Code</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* Invite Member Modal */}
+            <Modal visible={showInviteModal} transparent animationType="fade">
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => {
+                        setShowInviteModal(false);
+                        setSearchQuery('');
+                    }}
+                >
+                    <View style={styles.inviteContent}>
+                        <Text style={styles.inviteTitle}>Invite Member</Text>
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="Search by username..."
+                            placeholderTextColor="#94a3b8"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            autoFocus
+                        />
+                        {filteredSearchResults.map((user) => (
+                            <TouchableOpacity
+                                key={user.id}
+                                style={styles.searchResultRow}
+                                onPress={() => handleSendInvite(user.id)}
+                                disabled={sendInvite.isPending}
+                            >
+                                <View style={styles.searchResultAvatar}>
+                                    <Text style={styles.searchResultAvatarText}>
+                                        {getInitials(user)}
+                                    </Text>
+                                </View>
+                                <View style={styles.searchResultInfo}>
+                                    <Text style={styles.searchResultName}>{fullName(user)}</Text>
+                                    <Text style={styles.searchResultUsername}>@{user.username}</Text>
+                                </View>
+                                <IconSymbol size={16} name="plus.circle.fill" color="#7c3aed" />
+                            </TouchableOpacity>
+                        ))}
+                        {searchQuery.length >= 2 && filteredSearchResults.length === 0 && (
+                            <Text style={styles.noResultsText}>No users found</Text>
+                        )}
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -584,6 +681,99 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#94a3b8',
         fontWeight: '500',
+    },
+    // Modals
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    menuContent: {
+        backgroundColor: '#ffffff',
+        borderRadius: 16,
+        padding: 8,
+        width: '70%',
+    },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+    },
+    menuItemText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#0f172a',
+    },
+    menuDivider: {
+        height: 1,
+        backgroundColor: '#f1f5f9',
+        marginHorizontal: 16,
+    },
+    inviteContent: {
+        backgroundColor: '#ffffff',
+        borderRadius: 20,
+        padding: 24,
+        width: '85%',
+        maxHeight: '60%',
+    },
+    inviteTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#0f172a',
+        marginBottom: 16,
+    },
+    searchInput: {
+        height: 48,
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        fontSize: 16,
+        color: '#0f172a',
+        marginBottom: 12,
+    },
+    searchResultRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    searchResultAvatar: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: '#7c3aed',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    searchResultAvatarText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#ffffff',
+    },
+    searchResultInfo: {
+        flex: 1,
+    },
+    searchResultName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#0f172a',
+    },
+    searchResultUsername: {
+        fontSize: 13,
+        color: '#94a3b8',
+    },
+    noResultsText: {
+        textAlign: 'center',
+        color: '#94a3b8',
+        fontSize: 14,
+        paddingVertical: 16,
     },
     // FAB
     fab: {

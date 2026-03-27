@@ -60,8 +60,8 @@ func main() {
 
 	// Handlers
 	userH := handler.NewUserHandler(userSvc, auth)
-	groupH := handler.NewGroupHandler(groupSvc)
-	betH := handler.NewBetHandler(betSvc)
+	groupH := handler.NewGroupHandler(groupSvc, userRepo)
+	betH := handler.NewBetHandler(betSvc, userRepo)
 	inviteH := handler.NewInviteHandler(inviteSvc)
 	notifH := handler.NewNotificationHandler(notifSvc)
 

@@ -1,19 +1,22 @@
+import { supabase } from '@/lib/supabase';
 import React, { useState } from 'react';
 import {
   Alert,
-  StyleSheet,
-  View,
-  TextInput,
-  Text,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { supabase } from '@/lib/supabase';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function signInWithEmail() {
@@ -28,10 +31,20 @@ export default function Auth() {
   }
 
   async function signUpWithEmail() {
+    if (!firstName.trim()) {
+      Alert.alert('Sign Up Error', 'First name is required.');
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email: email,
       password: password,
+      options: {
+        data: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+        },
+      },
     });
 
     if (error) Alert.alert('Sign Up Error', error.message);
@@ -46,9 +59,39 @@ export default function Auth() {
     >
       <View style={styles.contentContainer}>
         <View style={styles.headerContainer}>
-          <Text style={styles.headerTitle}>Welcome Back</Text>
-          <Text style={styles.headerSubtitle}>Please enter your details to sign in.</Text>
+          <Text style={styles.headerTitle}>{isSignUp ? 'Create Account' : 'Welcome Back'}</Text>
+          <Text style={styles.headerSubtitle}>
+            {isSignUp ? 'Enter your details to get started.' : 'Please enter your details to sign in.'}
+          </Text>
         </View>
+
+        {isSignUp && (
+          <>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>First Name</Text>
+              <TextInput
+                style={styles.input}
+                onChangeText={setFirstName}
+                value={firstName}
+                placeholder="John"
+                placeholderTextColor="#94a3b8"
+                autoCapitalize="words"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Last Name</Text>
+              <TextInput
+                style={styles.input}
+                onChangeText={setLastName}
+                value={lastName}
+                placeholder="Doe"
+                placeholderTextColor="#94a3b8"
+                autoCapitalize="words"
+              />
+            </View>
+          </>
+        )}
 
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Email</Text>
@@ -78,11 +121,11 @@ export default function Auth() {
 
         <TouchableOpacity
           style={[styles.button, styles.primaryButton]}
-          onPress={() => signInWithEmail()}
+          onPress={() => (isSignUp ? signUpWithEmail() : signInWithEmail())}
           disabled={loading}
         >
           <Text style={styles.primaryButtonText}>
-            {loading ? 'Loading...' : 'Sign In'}
+            {loading ? 'Loading...' : isSignUp ? 'Create Account' : 'Sign In'}
           </Text>
         </TouchableOpacity>
 
@@ -94,10 +137,12 @@ export default function Auth() {
 
         <TouchableOpacity
           style={[styles.button, styles.secondaryButton]}
-          onPress={() => signUpWithEmail()}
+          onPress={() => setIsSignUp(!isSignUp)}
           disabled={loading}
         >
-          <Text style={styles.secondaryButtonText}>Create an account</Text>
+          <Text style={styles.secondaryButtonText}>
+            {isSignUp ? 'Already have an account? Sign In' : 'Create an account'}
+          </Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

@@ -10,11 +10,12 @@ import (
 )
 
 type GroupHandler struct {
-	svc *service.GroupService
+	svc   *service.GroupService
+	users UserFinder
 }
 
-func NewGroupHandler(svc *service.GroupService) *GroupHandler {
-	return &GroupHandler{svc: svc}
+func NewGroupHandler(svc *service.GroupService, users UserFinder) *GroupHandler {
+	return &GroupHandler{svc: svc, users: users}
 }
 
 // Create handles POST /groups.
@@ -98,7 +99,48 @@ func (h *GroupHandler) Get(c *echo.Context) error {
 		return handleError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, group)
+	// Hydrate member user info
+	memberIDs := make([]primitive.ObjectID, len(group.Members))
+	for i, m := range group.Members {
+		memberIDs[i] = m.UserID
+	}
+	userMap, err := buildUserMap(c.Request().Context(), h.users, memberIDs)
+	if err != nil {
+		return handleError(c, err)
+	}
+
+	type hydratedMember struct {
+		UserID    string  `json:"user_id"`
+		FirstName string  `json:"first_name"`
+		LastName  string  `json:"last_name"`
+		Username  string  `json:"username"`
+		AvatarURL *string `json:"avatar_url"`
+		Role      string  `json:"role"`
+		JoinedAt  string  `json:"joined_at"`
+	}
+	members := make([]hydratedMember, len(group.Members))
+	for i, m := range group.Members {
+		u := userMap[m.UserID.Hex()]
+		members[i] = hydratedMember{
+			UserID:    m.UserID.Hex(),
+			FirstName: u.FirstName,
+			LastName:  u.LastName,
+			Username:  u.Username,
+			AvatarURL: u.AvatarURL,
+			Role:      m.Role,
+			JoinedAt:  m.JoinedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"id":          group.ID,
+		"name":        group.Name,
+		"description": group.Description,
+		"invite_code": group.InviteCode,
+		"created_by":  group.CreatedBy,
+		"members":     members,
+		"created_at":  group.CreatedAt,
+	})
 }
 
 // JoinByCode handles POST /groups/join.

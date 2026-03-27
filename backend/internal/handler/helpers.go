@@ -1,12 +1,60 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"youwont.api/internal/model"
 	"youwont.api/internal/service"
 )
+
+// UserFinder lets handlers look up users by ID for response hydration.
+type UserFinder interface {
+	FindByIDs(ctx context.Context, ids []primitive.ObjectID) ([]model.User, error)
+}
+
+// UserSummary is the public user info included in hydrated responses.
+type UserSummary struct {
+	ID        string  `json:"id"`
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	Username  string  `json:"username"`
+	AvatarURL *string `json:"avatar_url"`
+}
+
+// buildUserMap fetches users by IDs and returns a map from hex ID to UserSummary.
+func buildUserMap(ctx context.Context, uf UserFinder, ids []primitive.ObjectID) (map[string]UserSummary, error) {
+	if len(ids) == 0 {
+		return map[string]UserSummary{}, nil
+	}
+	// deduplicate
+	seen := make(map[primitive.ObjectID]bool)
+	unique := make([]primitive.ObjectID, 0, len(ids))
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			unique = append(unique, id)
+		}
+	}
+	users, err := uf.FindByIDs(ctx, unique)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]UserSummary, len(users))
+	for _, u := range users {
+		m[u.ID.Hex()] = UserSummary{
+			ID:        u.ID.Hex(),
+			FirstName: u.FirstName,
+			LastName:  u.LastName,
+			Username:  u.Username,
+			AvatarURL: u.AvatarURL,
+		}
+	}
+	return m, nil
+}
 
 func handleError(c *echo.Context, err error) error {
 	code := http.StatusInternalServerError
