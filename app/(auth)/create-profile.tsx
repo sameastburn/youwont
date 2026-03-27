@@ -9,16 +9,19 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useCreateUser } from '@/hooks/use-user';
 
 export default function CreateProfile() {
-    const [name, setName] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [username, setUsername] = useState('');
     const createUser = useCreateUser();
+    const router = useRouter();
 
     function handleSubmit() {
-        if (!name.trim()) {
-            Alert.alert('Error', 'Name is required');
+        if (!firstName.trim()) {
+            Alert.alert('Error', 'First name is required');
             return;
         }
         if (!username.trim()) {
@@ -26,7 +29,7 @@ export default function CreateProfile() {
             return;
         }
         createUser.mutate(
-            { name: name.trim(), username: username.trim().toLowerCase() },
+            { first_name: firstName.trim(), last_name: lastName.trim(), username: username.trim().toLowerCase() },
             {
                 onError: (err) => {
                     Alert.alert('Error', err.message);
@@ -47,12 +50,24 @@ export default function CreateProfile() {
                 </View>
 
                 <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Name</Text>
+                    <Text style={styles.inputLabel}>First Name</Text>
                     <TextInput
                         style={styles.input}
-                        onChangeText={setName}
-                        value={name}
-                        placeholder="Your name"
+                        onChangeText={setFirstName}
+                        value={firstName}
+                        placeholder="John"
+                        placeholderTextColor="#94a3b8"
+                        autoCapitalize="words"
+                    />
+                </View>
+
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Last Name</Text>
+                    <TextInput
+                        style={styles.input}
+                        onChangeText={setLastName}
+                        value={lastName}
+                        placeholder="Doe"
                         placeholderTextColor="#94a3b8"
                         autoCapitalize="words"
                     />
@@ -79,6 +94,13 @@ export default function CreateProfile() {
                     <Text style={styles.primaryButtonText}>
                         {createUser.isPending ? 'Creating...' : 'Get Started'}
                     </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.button, styles.skipButton]}
+                    onPress={() => router.replace('/(tabs)')}
+                >
+                    <Text style={styles.skipButtonText}>Skip for now</Text>
                 </TouchableOpacity>
             </View>
         </KeyboardAvoidingView>
@@ -146,5 +168,13 @@ const styles = StyleSheet.create({
         color: '#ffffff',
         fontSize: 16,
         fontWeight: '600',
+    },
+    skipButton: {
+        backgroundColor: 'transparent',
+    },
+    skipButtonText: {
+        color: '#94a3b8',
+        fontSize: 14,
+        fontWeight: '500',
     },
 });

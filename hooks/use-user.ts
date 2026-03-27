@@ -21,7 +21,7 @@ export function useSearchUsers(query: string) {
 export function useCreateUser() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (data: { name: string; username: string }) => usersApi.createUser(data),
+        mutationFn: (data: { first_name: string; last_name: string; username: string }) => usersApi.createUser(data),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['me'] });
         },

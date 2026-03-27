@@ -1,5 +1,6 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useMe } from '@/hooks/use-user';
+import { fullName, getInitials } from '@/lib/user';
 import { useRouter } from 'expo-router';
 import {
     Alert,
@@ -30,14 +31,6 @@ export default function SettingsScreen() {
         ]);
     };
 
-    const getInitials = (name: string) =>
-        name
-            .split(' ')
-            .map((n) => n[0])
-            .join('')
-            .toUpperCase()
-            .slice(0, 2);
-
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.headerContainer}>
@@ -49,11 +42,11 @@ export default function SettingsScreen() {
                 <View style={styles.profileCard}>
                     <View style={styles.avatar}>
                         <Text style={styles.avatarText}>
-                            {me?.name ? getInitials(me.name) : '?'}
+                            {me ? getInitials(me) : '?'}
                         </Text>
                     </View>
                     <View style={styles.profileInfo}>
-                        <Text style={styles.profileName}>{me?.name ?? 'User'}</Text>
+                        <Text style={styles.profileName}>{me ? fullName(me) : 'User'}</Text>
                         <Text style={styles.profileUsername}>@{me?.username ?? 'unknown'}</Text>
                     </View>
                 </View>

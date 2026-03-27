@@ -1,6 +1,7 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { LoadingState } from '@/components/loading-state';
 import { useMe } from '@/hooks/use-user';
+import { fullName } from '@/lib/user';
 import { useGroups } from '@/hooks/use-groups';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useRouter } from 'expo-router';
@@ -46,7 +47,7 @@ export default function HomeScreen() {
                 <View style={styles.header}>
                     <View>
                         <Text style={styles.greeting}>you<Text style={styles.greetingAccent}>wont</Text></Text>
-                        <Text style={styles.subGreeting}>Welcome back, {me?.name ?? 'User'}!</Text>
+                        <Text style={styles.subGreeting}>Welcome back, {me ? fullName(me) : 'User'}!</Text>
                     </View>
                 </View>
 

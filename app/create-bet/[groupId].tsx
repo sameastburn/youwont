@@ -3,6 +3,7 @@ import { LoadingState } from '@/components/loading-state';
 import { useGroup } from '@/hooks/use-groups';
 import { useCreateBet } from '@/hooks/use-bets';
 import { useMe } from '@/hooks/use-user';
+import { fullName } from '@/lib/user';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -151,7 +152,7 @@ export default function CreateBetScreen() {
                                             deciderId === member.user_id && styles.memberChipTextActive,
                                         ]}
                                     >
-                                        {member.name}
+                                        {fullName(member)}
                                     </Text>
                                 </TouchableOpacity>
                             ))}

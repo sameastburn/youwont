@@ -25,16 +25,10 @@ function RootLayoutNav() {
 
         if (!session && !inAuthGroup) {
             router.replace('/(auth)/login');
-        } else if (session && needsProfile && String(segments[1]) !== 'create-profile') {
-            router.replace('/(auth)/create-profile' as any);
-        } else if (session && me && inAuthGroup) {
+        } else if (session && inAuthGroup) {
             router.replace('/(tabs)');
         }
     }, [session, isLoading, me, meError, meLoading, segments]);
-
-    if (isLoading || (session && meLoading)) {
-        return null;
-    }
 
     return (
         <Stack screenOptions={{ headerShown: false }}>

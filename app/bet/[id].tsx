@@ -3,6 +3,7 @@ import { LoadingState } from '@/components/loading-state';
 import { ErrorState } from '@/components/error-state';
 import { useBet, usePlaceWager, useResolveBet } from '@/hooks/use-bets';
 import { useMe } from '@/hooks/use-user';
+import { fullName, getInitials } from '@/lib/user';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -54,14 +55,6 @@ export default function BetDetailScreen() {
     };
 
     const sc = statusColors[bet.status];
-
-    const getInitials = (name: string) =>
-        name
-            .split(' ')
-            .map((n) => n[0])
-            .join('')
-            .toUpperCase()
-            .slice(0, 2);
 
     const avatarColors = ['#7c3aed', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626'];
 
@@ -166,7 +159,7 @@ export default function BetDetailScreen() {
                         </View>
                         <View>
                             <Text style={styles.detailLabel}>Created by</Text>
-                            <Text style={styles.detailValue}>{bet.creator.name}</Text>
+                            <Text style={styles.detailValue}>{fullName(bet.creator)}</Text>
                         </View>
                     </View>
                     <View style={styles.detailDivider} />
@@ -176,7 +169,7 @@ export default function BetDetailScreen() {
                         </View>
                         <View>
                             <Text style={styles.detailLabel}>Decider</Text>
-                            <Text style={styles.detailValue}>{bet.decider.name}</Text>
+                            <Text style={styles.detailValue}>{fullName(bet.decider)}</Text>
                         </View>
                     </View>
                     <View style={styles.detailDivider} />
@@ -213,12 +206,12 @@ export default function BetDetailScreen() {
                                 ]}
                             >
                                 <Text style={styles.wagerAvatarText}>
-                                    {getInitials(wager.user.name)}
+                                    {getInitials(wager.user)}
                                 </Text>
                             </View>
                             <View style={styles.wagerInfo}>
                                 <Text style={styles.wagerName}>
-                                    {wager.user.id === me?.id ? 'You' : wager.user.name}
+                                    {wager.user.id === me?.id ? 'You' : fullName(wager.user)}
                                 </Text>
                                 <Text style={styles.wagerDate}>
                                     {new Date(wager.placed_at).toLocaleDateString('en-US', {

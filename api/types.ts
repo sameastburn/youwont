@@ -3,7 +3,8 @@
 export interface User {
     id: string;
     supabase_id: string;
-    name: string;
+    first_name: string;
+    last_name: string;
     username: string;
     avatar_url: string | null;
     points: number;
@@ -12,14 +13,16 @@ export interface User {
 
 export interface UserSummary {
     id: string;
-    name: string;
+    first_name: string;
+    last_name: string;
     username: string;
     avatar_url: string | null;
 }
 
 export interface HydratedMember {
     user_id: string;
-    name: string;
+    first_name: string;
+    last_name: string;
     username: string;
     avatar_url: string | null;
     role: 'ADMIN' | 'MEMBER';

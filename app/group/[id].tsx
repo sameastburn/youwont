@@ -6,6 +6,7 @@ import { useBets } from '@/hooks/use-bets';
 import { useSendInvite } from '@/hooks/use-invites';
 import { useSearchUsers } from '@/hooks/use-user';
 import type { BetSummary } from '@/api/types';
+import { fullName, getInitials } from '@/lib/user';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
@@ -77,15 +78,6 @@ export default function GroupDetailScreen() {
         CANCELED: { bg: '#fef2f2', text: '#dc2626', dot: '#ef4444' },
     };
 
-    const getInitials = (name: string) => {
-        return name
-            .split(' ')
-            .map((n) => n[0])
-            .join('')
-            .toUpperCase()
-            .slice(0, 2);
-    };
-
     const avatarColors = ['#7c3aed', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed'];
 
     return (
@@ -149,11 +141,11 @@ export default function GroupDetailScreen() {
                                 ]}
                             >
                                 <Text style={styles.memberAvatarText}>
-                                    {getInitials(member.name)}
+                                    {getInitials(member)}
                                 </Text>
                             </View>
                             <Text style={styles.memberName} numberOfLines={1}>
-                                {member.name.split(' ')[0]}
+                                {member.first_name}
                             </Text>
                             {member.role === 'ADMIN' && (
                                 <View style={styles.adminBadge}>
@@ -343,11 +335,11 @@ export default function GroupDetailScreen() {
                             >
                                 <View style={styles.searchResultAvatar}>
                                     <Text style={styles.searchResultAvatarText}>
-                                        {user.name.charAt(0).toUpperCase()}
+                                        {getInitials(user)}
                                     </Text>
                                 </View>
                                 <View style={styles.searchResultInfo}>
-                                    <Text style={styles.searchResultName}>{user.name}</Text>
+                                    <Text style={styles.searchResultName}>{fullName(user)}</Text>
                                     <Text style={styles.searchResultUsername}>@{user.username}</Text>
                                 </View>
                                 <IconSymbol size={16} name="plus.circle.fill" color="#7c3aed" />
